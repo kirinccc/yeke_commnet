@@ -8,7 +8,7 @@ import com.hmdp.entity.UserInfo;
 import com.hmdp.service.IUserInfoService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.RegexUtils;
-import com.sun.org.apache.bcel.internal.classfile.Code;
+import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,16 +39,7 @@ public class UserController {
      */
     @PostMapping("code")
     public Result<String> sendCode(@RequestParam("phone") String phone, HttpSession session) {
-        String code ;
-        if(RegexUtils.isPhoneInvalid(phone)){
-            log.info("手机号格式不正确");
-            return Result.error("手机号格式不正确");
-        }else{
-            code = RandomUtil.randomNumbers(6);
-            session.setAttribute("验证码",code);
-            log.info("手机验证码：{}",code);
-        }
-        return Result.success(code);
+        return userService.sendCode(phone, session);
     }
 
     /**
@@ -57,8 +48,7 @@ public class UserController {
      */
     @PostMapping("/login")
     public Result login(@RequestBody LoginFormDTO loginForm, HttpSession session){
-        // TODO 实现登录功能
-        return Result.error("功能未完成");
+        return userService.login(loginForm, session);
     }
 
     /**
@@ -73,8 +63,8 @@ public class UserController {
 
     @GetMapping("/me")
     public Result me(){
-        // TODO 获取当前登录的用户并返回
-        return Result.error("功能未完成");
+        // 获取当前登录的用户并返回（由登录拦截器放入 ThreadLocal）
+        return Result.success(UserHolder.getUser());
     }
 
     @GetMapping("/info/{id}")
