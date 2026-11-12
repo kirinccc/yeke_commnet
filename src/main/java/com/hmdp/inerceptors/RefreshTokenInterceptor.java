@@ -2,7 +2,7 @@ package com.hmdp.inerceptors;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
-import com.hmdp.utils.RedisConstants;
+import com.hmdp.constants.RedisConstants;
 import com.hmdp.utils.UserHolder;
 import com.hmdp.vo.UserVO;
 import org.springframework.data.redis.core.StringRedisTemplate;

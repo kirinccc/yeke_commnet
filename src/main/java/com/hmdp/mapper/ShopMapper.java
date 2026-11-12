@@ -13,4 +13,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
  */
 public interface ShopMapper extends BaseMapper<Shop> {
 
+    Shop findShopById(Long id);
+
+    int updateShopById(Shop shop);
 }
