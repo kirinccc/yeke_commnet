@@ -70,7 +70,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         }
         Long userId = UserHolder.getUser().getId();
         //获取分布式锁（替代原来的 synchronized 悲观锁）
-        if(!redisDistributedLock.tryLock(String.valueOf(userId), 10)){
+        if(!redisDistributedLock.tryLock(String.valueOf(userId), 2)){
             log.error("用户:{}重复提交，获取锁失败，优惠券:{}", userId, voucherId);
             throw new BaseException("请勿重复提交，请稍后再试");
         }
