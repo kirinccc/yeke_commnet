@@ -5,4 +5,11 @@
     <select id="findByphone" resultType="com.hmdp.entity.User">
         SELECT * FROM tb_user WHERE phone = #{phone}
     </select>
+    <select id="findUsersByIds" resultType="com.hmdp.entity.User">
+        select * from tb_user where id in
+        <foreach collection="userIdList" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        order by field(id,${userIds})
+    </select>
 </mapper>

@@ -38,12 +38,20 @@ public class BlogController {
         return blogService.saveBlog(blog);
     }
 
+    /*
+    * 点赞博文
+    * */
     @PutMapping("/like/{id}")
     public Result likeBlog(@PathVariable("id") Long id) {
-        // 修改点赞数量
-        blogService.update()
-                .setSql("liked = liked + 1").eq("id", id).update();
-        return Result.success();
+        return blogService.likeBlog(id);
+    }
+
+    /*
+     * 获取点赞排行榜
+     * */
+    @GetMapping("/likes/{id}")
+    public Result queryLikeBlog(@PathVariable("id") Long id) {
+        return blogService.blogLikeTop(id);
     }
 
     @GetMapping("/of/me")
@@ -57,6 +65,8 @@ public class BlogController {
         List<Blog> records = page.getRecords();
         return Result.success(records);
     }
+
+
 
     @GetMapping("/hot")
     public Result queryHotBlog(@RequestParam(value = "current", defaultValue = "1") Integer current) {
@@ -76,6 +86,10 @@ public class BlogController {
         return Result.success(records);
     }
 
+    /*
+    *
+    *
+    * */
     @GetMapping("/{id}")
     public Result<BlogVO> queryBlogById(@PathVariable("id") Long id) {
         return blogService.getBlogById(id);
