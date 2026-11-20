@@ -1,12 +1,16 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.core.util.StrUtil;
 import com.hmdp.constants.RedisConstants;
+import com.hmdp.constants.SystemConstants;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.ScrollResult;
 import com.hmdp.entity.Blog;
 import com.hmdp.entity.User;
 import com.hmdp.mapper.BlogMapper;
 import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IBlogService;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.UserHolder;
 import com.hmdp.vo.BlogVO;
@@ -14,6 +18,7 @@ import com.hmdp.vo.UserVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -48,6 +53,14 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         Long userId = UserHolder.getUser().getId();
         blog.setUserId(userId);
         blogMapper.insert(blog);
+        //向数据库当中保存完博文之后，需要查出当前用户的所有粉丝id
+        List<Long> fansIdList = userMapper.getFansById(userId);
+        //将当前发布的探店笔记id转换为String类型
+        String blogId = String.valueOf(blog.getId());
+        //将所有探店笔记的id和创建时间存储到指定粉丝为id的Redis里面
+        for (Long fansId : fansIdList) {
+            stringRedisTemplate.opsForZSet().add(RedisConstants.FANS_USER_KEY + fansId, blogId, System.currentTimeMillis());
+        }
         return Result.success(blog.getId());
     }
 
@@ -128,5 +141,92 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
                 .map(u -> new UserVO(u.getId(), u.getNickName(), u.getIcon()))
                 .collect(Collectors.toList());
         return Result.success(userVOList);
+    }
+
+    /*
+    * 分页查询指定用户发布的笔记（他人主页）
+    * */
+    @Override
+    public Result queryBlogOfUser(Long id, Integer current) {
+        //按发布时间倒序分页查询该用户的笔记
+        Page<Blog> page = query()
+                .eq("user_id", id)
+                .orderByDesc("create_time")
+                .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
+        //获取当前页数据
+        List<Blog> records = page.getRecords();
+        if(records.isEmpty()){
+            //该用户还没发过笔记，直接返回空集合
+            return Result.success(records);
+        }
+        //回填博主昵称和头像，供前端展示
+        User user = userMapper.selectById(id);
+        records.forEach(blog -> {
+            blog.setName(user.getNickName());
+            blog.setIcon(user.getIcon());
+        });
+        return Result.success(records);
+    }
+
+
+    /*
+    * 使用滚动分页查询，查看所有关注的博主的新博文
+    * */
+    @Override
+    public Result queryFollowerBlog(Long lastTimeStamp, Integer offset) {
+        //获取当前用户的id
+        Long userId = UserHolder.getUser().getId();
+        //查询当前用户所有关注的博主推送的博文
+        Set<ZSetOperations.TypedTuple<String>> typedTuples = stringRedisTemplate.opsForZSet().reverseRangeByScoreWithScores(RedisConstants.FANS_USER_KEY + userId, 0, lastTimeStamp, offset, 3);
+        //判断取出来的集合是否为空
+        if(typedTuples == null||typedTuples.isEmpty()){
+            //没有更多了，返回空list并重置游标，保证前端{list,minTime,offset}的解构不报错
+            ScrollResult emptyResult = new ScrollResult();
+            emptyResult.setList(Collections.emptyList());
+            emptyResult.setMinTime(System.currentTimeMillis());
+            emptyResult.setOffset(0);
+            return Result.success(emptyResult);
+        }
+        //将当前集合内的博文id取出来，并计算下一次的offset
+        List<Long> blogIds = new ArrayList<>(typedTuples.size());
+        long minTime = 0;
+        int nextOffset = 1;
+        for (ZSetOperations.TypedTuple<String> tt : typedTuples) {
+            //取出博文id
+            blogIds.add(Long.valueOf(tt.getValue()));
+            //取出博文的时间戳（getScore是Double，直接longValue，转String会变科学计数法导致解析失败）
+            long time = tt.getScore().longValue();
+            if(time == minTime){
+                //相等则将nextOffset+1
+                nextOffset++;
+            }else{
+                //不相等则更新minTime，并将nextOffset置为1
+                minTime = time;
+                nextOffset = 1;
+            }
+        }
+        //根据博文id来查询全部的博文，SQL里order by field保证顺序和收件箱一致
+        String blogIdsStr = StrUtil.join(",",blogIds);
+        List<Blog> blogs = blogMapper.queryBolgsByIds(blogIds,blogIdsStr);
+        //逐篇组装BlogVO：回填博主昵称头像、当前用户是否点赞
+        List<BlogVO> blogVOList = new ArrayList<>(blogs.size());
+        for (Blog blog : blogs) {
+            BlogVO blogVO = new BlogVO();
+            BeanUtils.copyProperties(blog, blogVO);
+            //查询blog有关的用户，回填昵称和头像
+            User user = userMapper.selectById(blog.getUserId());
+            blogVO.setName(user.getNickName());
+            blogVO.setIcon(user.getIcon());
+            //查询blog是否被当前用户点赞：点赞ZSet中存在该用户即已点赞
+            Double score = stringRedisTemplate.opsForZSet().score(RedisConstants.BLOG_LIKED_KEY + blog.getId(), userId.toString());
+            blogVO.setIsLike(score != null);
+            blogVOList.add(blogVO);
+        }
+        //封装滚动结果：list + 下一次查询的游标(minTime,nextOffset)
+        ScrollResult scrollResult = new ScrollResult();
+        scrollResult.setList(blogVOList);
+        scrollResult.setMinTime(minTime);
+        scrollResult.setOffset(nextOffset);
+        return Result.success(scrollResult);
     }
 }

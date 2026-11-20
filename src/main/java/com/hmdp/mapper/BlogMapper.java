@@ -3,6 +3,8 @@ package com.hmdp.mapper;
 import com.hmdp.entity.Blog;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
+import java.util.List;
+
 /**
  * <p>
  *  Mapper 接口
@@ -16,4 +18,6 @@ public interface BlogMapper extends BaseMapper<Blog> {
     void subLike(Long id);
 
     void addLike(Long id);
+
+    List<Blog> queryBolgsByIds(List<Long> blogIds,String blogIdsStr);
 }

@@ -19,4 +19,6 @@ public interface UserMapper extends BaseMapper<User> {
     User findByphone(String phone);
 
     List<User> findUsersByIds(@Param("userIds") String userIds, @Param("userIdList") List<Long> userIdList);
+
+    List<Long> getFansById(Long userId);
 }

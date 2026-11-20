@@ -66,6 +66,15 @@ public class BlogController {
         return Result.success(records);
     }
 
+    /*
+    * 分页查询指定用户发布的笔记（他人主页）
+    * */
+    @GetMapping("/of/user")
+    public Result queryBlogOfUser(@RequestParam("id") Long id,
+                                  @RequestParam(value = "current", defaultValue = "1") Integer current) {
+        return blogService.queryBlogOfUser(id, current);
+    }
+
 
 
     @GetMapping("/hot")
@@ -94,4 +103,13 @@ public class BlogController {
     public Result<BlogVO> queryBlogById(@PathVariable("id") Long id) {
         return blogService.getBlogById(id);
     }
+
+
+    /*分页查询关注用户的笔记*/
+    @GetMapping("/of/follow")
+    public Result queryFollowerBlog(@RequestParam(value = "lastId") Long lastTimeStamp,
+                                    @RequestParam(value = "offset", defaultValue = "0") Integer offset){
+        return blogService.queryFollowerBlog(lastTimeStamp,offset);
+    }
+
 }

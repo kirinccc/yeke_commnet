@@ -9,6 +9,7 @@ import com.hmdp.service.IUserInfoService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.RegexUtils;
 import com.hmdp.utils.UserHolder;
+import com.hmdp.vo.UserVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
@@ -65,6 +66,14 @@ public class UserController {
     public Result me(){
         // 获取当前登录的用户并返回（由登录拦截器放入 ThreadLocal）
         return Result.success(UserHolder.getUser());
+    }
+
+    /*
+    * 根据id查询用户基本信息（他人主页）
+    * */
+    @GetMapping("/{id}")
+    public Result<UserVO> queryUserById(@PathVariable("id") Long userId) {
+        return userService.queryUserById(userId);
     }
 
     @GetMapping("/info/{id}")

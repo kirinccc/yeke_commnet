@@ -110,4 +110,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
                 .build();
         return user;
     }
+
+    /*
+    * 根据id查询用户基本信息（他人主页）
+    * */
+    @Override
+    public Result<UserVO> queryUserById(Long userId) {
+        //根据id查询用户
+        User user = userMapper.selectById(userId);
+        if(user == null){
+            log.error("用户不存在");
+            return Result.error("用户不存在");
+        }
+        //脱敏：只返回id、昵称、头像给前端
+        UserVO userVO = new UserVO(user.getId(), user.getNickName(), user.getIcon());
+        return Result.success(userVO);
+    }
 }

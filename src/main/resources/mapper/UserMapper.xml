@@ -12,4 +12,7 @@
         </foreach>
         order by field(id,${userIds})
     </select>
+    <select id="getFansById" resultType="java.lang.Long">
+        select user_id from tb_follow where follow_user_id = #{userId}
+    </select>
 </mapper>

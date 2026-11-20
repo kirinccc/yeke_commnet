@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.hmdp.dto.LoginFormDTO;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.User;
+import com.hmdp.vo.UserVO;
 
 import javax.servlet.http.HttpSession;
 
@@ -20,4 +21,6 @@ public interface IUserService extends IService<User> {
     Result<String> sendCode(String phone, HttpSession session);
 
     Result login(LoginFormDTO loginForm, HttpSession session);
+
+    Result<UserVO> queryUserById(Long userId);
 }
