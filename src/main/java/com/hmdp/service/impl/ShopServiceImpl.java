@@ -3,19 +3,34 @@ package com.hmdp.service.impl;
 import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.constants.ExceptionConstants;
 import com.hmdp.constants.RedisConstants;
+import com.hmdp.constants.SystemConstants;
+import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.exception.BaseException;
 import com.hmdp.mapper.ShopMapper;
 import com.hmdp.service.IShopService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.geo.Circle;
+import org.springframework.data.geo.Distance;
+import org.springframework.data.geo.GeoResult;
+import org.springframework.data.geo.GeoResults;
+import org.springframework.data.geo.Metrics;
+import org.springframework.data.geo.Point;
+import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -139,5 +154,62 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         Boolean flag = stringRedisTemplate.opsForValue()
                 .setIfAbsent(lockKey, "1", RedisConstants.LOCK_SHOP_TTL, TimeUnit.SECONDS);
         return BooleanUtil.isTrue(flag);
+    }
+
+    /*
+    * 按类型查询商铺：支持人气/评分排序、GEO距离排序
+    * */
+    @Override
+    public Result queryShopByType(Integer typeId, Integer current, String sortBy, Double x, Double y) {
+        //人气/评分排序：走数据库排序分页（白名单校验，防止排序字段注入）
+        if (StrUtil.isNotBlank(sortBy)) {
+            String column = "comments".equals(sortBy) ? "comments" : "score";
+            Page<Shop> page = query()
+                    .eq("type_id", typeId)
+                    .orderByDesc(column)
+                    .page(new Page<>(current, SystemConstants.DEFAULT_PAGE_SIZE));
+            return Result.success(page.getRecords());
+        }
+        //没有坐标：普通分页兜底
+        if (x == null || y == null) {
+            Page<Shop> page = query()
+                    .eq("type_id", typeId)
+                    .page(new Page<>(current, SystemConstants.DEFAULT_PAGE_SIZE));
+            return Result.success(page.getRecords());
+        }
+        //GEO距离排序：GEORADIUS一次查出半径内全部商铺（带距离、升序），再内存分页
+        //服务端是Redis5.0，没有GEOSEARCH命令，只能用radius（GEORADIUS）
+        String key = RedisConstants.SHOP_GEO_KEY + typeId;
+        GeoResults<RedisGeoCommands.GeoLocation<String>> results = stringRedisTemplate.opsForGeo().radius(
+                key,
+                new Circle(new Point(x, y), new Distance(5000, Metrics.NEUTRAL)),
+                RedisGeoCommands.GeoRadiusCommandArgs.newGeoRadiusArgs().includeDistance().sortAscending());
+        if (results == null || results.getContent().isEmpty()) {
+            //半径内没有商铺
+            return Result.success(Collections.emptyList());
+        }
+        List<GeoResult<RedisGeoCommands.GeoLocation<String>>> contents = results.getContent();
+        //截取当前页：GEORADIUS没有offset，只能手动subList
+        int from = (current - 1) * SystemConstants.DEFAULT_PAGE_SIZE;
+        if (from >= contents.size()) {
+            //已经翻过头了，没有更多数据
+            return Result.success(Collections.emptyList());
+        }
+        int to = Math.min(from + SystemConstants.DEFAULT_PAGE_SIZE, contents.size());
+        List<GeoResult<RedisGeoCommands.GeoLocation<String>>> pageList = contents.subList(from, to);
+        //取出当前页的商铺id和距离（Metrics.NEUTRAL即米，前端按米展示）
+        List<Long> ids = new ArrayList<>(pageList.size());
+        Map<Long, Double> distanceMap = new HashMap<>(pageList.size());
+        for (GeoResult<RedisGeoCommands.GeoLocation<String>> r : pageList) {
+            Long id = Long.valueOf(r.getContent().getName());
+            ids.add(id);
+            distanceMap.put(id, r.getDistance().getValue());
+        }
+        //按id批量查商铺，SQL里order by field保证顺序和GEO结果一致
+        String idsStr = StrUtil.join(",", ids);
+        List<Shop> shops = shopMapper.queryShopsByIds(ids, idsStr);
+        //回填距离
+        shops.forEach(shop -> shop.setDistance(distanceMap.get(shop.getId())));
+        return Result.success(shops);
     }
 }

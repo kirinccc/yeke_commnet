@@ -63,22 +63,23 @@ public class ShopController {
     }
 
     /**
-     * 根据商铺类型分页查询商铺信息
+     * 根据商铺类型分页查询商铺信息，支持人气/评分/距离排序
      * @param typeId 商铺类型
      * @param current 页码
+     * @param sortBy 排序字段（comments/score，为空且带坐标时按距离排序）
+     * @param x 经度
+     * @param y 纬度
      * @return 商铺列表
      */
     @GetMapping("/of/type")
     public Result queryShopByType(
             @RequestParam("typeId") Integer typeId,
-            @RequestParam(value = "current", defaultValue = "1") Integer current
+            @RequestParam(value = "current", defaultValue = "1") Integer current,
+            @RequestParam(value = "sortBy", required = false) String sortBy,
+            @RequestParam(value = "x", required = false) Double x,
+            @RequestParam(value = "y", required = false) Double y
     ) {
-        // 根据类型分页查询
-        Page<Shop> page = shopService.query()
-                .eq("type_id", typeId)
-                .page(new Page<>(current, SystemConstants.DEFAULT_PAGE_SIZE));
-        // 返回数据
-        return Result.success(page.getRecords());
+        return shopService.queryShopByType(typeId, current, sortBy, x, y);
     }
 
     /**

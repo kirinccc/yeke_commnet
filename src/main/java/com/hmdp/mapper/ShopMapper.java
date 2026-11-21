@@ -2,6 +2,9 @@ package com.hmdp.mapper;
 
 import com.hmdp.entity.Shop;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 /**
  * <p>
@@ -16,4 +19,6 @@ public interface ShopMapper extends BaseMapper<Shop> {
     Shop findShopById(Long id);
 
     int updateShopById(Shop shop);
+
+    List<Shop> queryShopsByIds(@Param("shopIds") List<Long> shopIds, @Param("shopIdsStr") String shopIdsStr);
 }

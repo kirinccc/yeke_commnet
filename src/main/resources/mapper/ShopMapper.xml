@@ -28,4 +28,13 @@
     <select id="findShopById" resultType="com.hmdp.entity.Shop">
         select id, name, type_id, images, area, address, x, y, avg_price, sold, comments, score, open_hours, create_time, update_time from tb_shop where id = #{id}
     </select>
+
+    <!-- 按id批量查询商铺，order by field保证顺序和GEO结果一致 -->
+    <select id="queryShopsByIds" resultType="com.hmdp.entity.Shop">
+        select * from tb_shop where id in
+        <foreach collection="shopIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        order by field(id,${shopIdsStr})
+    </select>
 </mapper>
