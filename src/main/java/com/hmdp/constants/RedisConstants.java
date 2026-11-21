@@ -22,7 +22,7 @@ public class RedisConstants {
     public static final String BLOG_LIKED_KEY = "blog:liked:";
     public static final String FEED_KEY = "feed:";
     public static final String SHOP_GEO_KEY = "shop:geo:";
-    public static final String USER_SIGN_KEY = "sign:";
+    public static final String USER_CHECK_IN_KEY = "checkIn:";
     public static final String FOLLOW_USER_KEY = "follow:";
     public static final String FANS_USER_KEY = "fans:";
 }

@@ -11,16 +11,21 @@ import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserService;
 import com.hmdp.constants.RedisConstants;
 import com.hmdp.utils.RegexUtils;
+import com.hmdp.utils.UserHolder;
 import com.hmdp.vo.UserVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.BitFieldSubCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpSession;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -126,4 +131,96 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         UserVO userVO = new UserVO(user.getId(), user.getNickName(), user.getIcon());
         return Result.success(userVO);
     }
+
+
+    /*
+    * 使用bitmap实现签到功能
+    * */
+    @Override
+    public Result checkIn() {
+        //获取当前用户id
+        Long userId = UserHolder.getUser().getId();
+        //获取当前时间
+        LocalDateTime now = LocalDateTime.now();
+        //格式化获取当前时间的年月
+        String yearAndMonth = now.format(DateTimeFormatter.ofPattern(":yyyy:MM"));
+        //获取当前时间的日
+        int dayOfMonth = now.getDayOfMonth();
+        //拼接用户id和年月得到bitmap的key
+        String key = RedisConstants.USER_CHECK_IN_KEY + userId + yearAndMonth;
+        //使用bitmap的setbit方法设置当前日期为1
+        stringRedisTemplate.opsForValue().setBit(key, dayOfMonth-1, true);
+        return Result.success();
+    }
+
+
+    /*
+    * 判断当天签到状态
+    * */
+    @Override
+    public Result checkInStatus() {
+        //获取当前用户id
+        Long userId = UserHolder.getUser().getId();
+        //获取当前时间
+        LocalDateTime now = LocalDateTime.now();
+        //格式化获取当前时间的年月
+        String yearAndMonth = now.format(DateTimeFormatter.ofPattern(":yyyy:MM"));
+        //获取当前时间的日
+        int dayOfMonth = now.getDayOfMonth();
+        //拼接用户id和年月得到bitmap的key
+        String key = RedisConstants.USER_CHECK_IN_KEY + userId + yearAndMonth;
+        //使用bitmap的getbit方法获取当前日期是否为1
+        Boolean isCheckIn = stringRedisTemplate.opsForValue().getBit(key, dayOfMonth-1);
+        //如果当前日期为1，则返回true，否则返回false
+        if(isCheckIn){
+            return Result.success(true);
+        }
+        return Result.success(false);
+    }
+
+    /*
+    * 统计当月截止当天的连续签到天数
+    * */
+    @Override
+    public Result checkInCount() {
+        //获取当前用户id
+        Long userId = UserHolder.getUser().getId();
+        //获取当前时间
+        LocalDateTime now = LocalDateTime.now();
+        //格式化获取当前时间的年月
+        String yearAndMonth = now.format(DateTimeFormatter.ofPattern(":yyyy:MM"));
+        //获取当前时间的日
+        int dayOfMonth = now.getDayOfMonth();
+        //拼接用户id和年月得到bitmap的key
+        String key = RedisConstants.USER_CHECK_IN_KEY + userId + yearAndMonth;
+        //使用bitmap的bitField方法获取当前日期到1的连续天数
+        List<Long> result = stringRedisTemplate
+                .opsForValue().bitField(key, BitFieldSubCommands.create()
+                        .get(BitFieldSubCommands.BitFieldType.unsigned(dayOfMonth))
+                        .valueAt(0));
+        //对结果集合判空
+        if(result==null||result.isEmpty()){
+            return Result.success(0);
+        }
+        //结果集合中的第一个元素判空
+        Long days = result.get(0);
+        if(days==null||days==0){
+            return Result.success(0);
+        }
+        //对取出来的结果对1做与运算，判断是否为1
+        int count =0;
+        while (true){
+            if((days & 1)==1){
+                //为1则将count加1
+                count++;
+                //将days右移一位
+                days = days >> 1;
+            }else {
+                //不为1，说明断签了，跳出循环
+                break;
+            }
+        }
+        return Result.success(count);
+    }
+
 }

@@ -89,4 +89,19 @@ public class UserController {
         // 返回
         return Result.success(info);
     }
+
+    @PostMapping("/checkIn")
+    public Result checkIn(){
+        return userService.checkIn();
+    }
+
+    @GetMapping("/checkIn/status")
+    public Result checkInStatus(){
+        return userService.checkInStatus();
+    }
+
+    @GetMapping("/checkIn/count")
+    public Result checkInCount(){
+        return userService.checkInCount();
+    }
 }
